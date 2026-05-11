@@ -1,43 +1,23 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
-#include <SmoothThermistor.h>
 
 // =========================
-// WiFi configuration
+// WiFi
 // =========================
 const char* ssid = "pomaranca";
 const char* password = "limonada";
 
-// Go server address
-const char* serverUrl = "http://192.168.1.100:8080/temperature";
+// Server URL
+const char* serverUrl = "http://192.168.1.100:8080/illuminance";
 
-// =========================
-// Thermistor configuration
-// =========================
-
-// ADC pin
-const int thermistorPin = 34;
-
-// Thermistor parameters
-// Example: 10k thermistor with Beta 3950
-const float SERIES_RESISTOR = 10000.0;
-const float THERMISTOR_NOMINAL = 10000.0;
-const float TEMPERATURE_NOMINAL = 25.0;
-const float BETA_COEFFICIENT = 3950.0;
-
-// Create SmoothThermistor object
-SmoothThermistor thermistor(
-    thermistorPin,
-    ADC_12BIT,
-    5, // number of samples
-    SERIES_RESISTOR,
-    THERMISTOR_NOMINAL,
-    TEMPERATURE_NOMINAL,
-    BETA_COEFFICIENT
-);
+// Analog pin
+const int sensorPin = 13;
 
 void setup() {
+
     Serial.begin(115200);
+
+    analogReadResolution(12);
 
     WiFi.begin(ssid, password);
 
@@ -50,20 +30,24 @@ void setup() {
 
     Serial.println();
     Serial.println("Connected!");
-    Serial.print("IP Address: ");
-    Serial.println(WiFi.localIP());
 }
 
 void loop() {
 
-    // Read temperature
-    float temperature = thermistor.temperature();
+    // Read analog value
+    int rawValue = analogRead(sensorPin);
 
-    Serial.print("Temperature: ");
-    Serial.print(temperature);
-    Serial.println(" °C");
+    // Convert ADC value to estimated lux
+    // Adjust scaling depending on your sensor
+    float lux = map(rawValue, 0, 4095, 0, 1000);
 
-    // Send data if WiFi connected
+    Serial.print("Raw ADC: ");
+    Serial.print(rawValue);
+
+    Serial.print("  Illuminance: ");
+    Serial.print(lux);
+    Serial.println(" lux");
+
     if (WiFi.status() == WL_CONNECTED) {
 
         HTTPClient http;
@@ -71,17 +55,15 @@ void loop() {
         http.begin(serverUrl);
         http.addHeader("Content-Type", "application/json");
 
-        // JSON payload
-        String json = "{\"temperature\": " + String(temperature, 2) + "}";
+        String json = "{\"illuminance\": " + String(lux, 2) + "}";
 
-        int httpResponseCode = http.POST(json);
+        int responseCode = http.POST(json);
 
-        Serial.print("HTTP Response code: ");
-        Serial.println(httpResponseCode);
+        Serial.print("HTTP Response: ");
+        Serial.println(responseCode);
 
         http.end();
     }
 
-    // Send every 5 seconds
     delay(5000);
 }
